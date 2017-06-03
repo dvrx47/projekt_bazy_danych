@@ -2,14 +2,26 @@ create database wspomaganie_konferencji;
 \c wspomaganie_konferencji
 
 drop table if exists wydarzenie cascade;
+drop table if exists table uzytkownik cascade;
+drop table if exists referat cascade;
+drop table if exists ocena cascade;
+drop table if exists znajomosc cascade;
+drop table if exists znajomosc_propozycja cascade;
+drop table if exists rejestracje cascade;
+drop table if exists obecnosc cascade;
+drop table if exists propozycja_referat cascade;
+
+
+
 create table wydarzenie (
-	wydarzenie_id 	serial primary key,
-	startDate 		TIMESTAMP not null default clock_timestamp(),
-	endDate 		TIMESTAMP not null default clock_timestamp()
+	wydarzenie_id 	 serial primary key,
+	wydarzenie_nazwa varchar(50) not null unique,
+	startDate 		 TIMESTAMP not null default clock_timestamp(),
+	endDate 		 TIMESTAMP not null default clock_timestamp()
 );
 
 
-drop table if exists table uzytkownik cascade;
+
 create table uzytkownik (
 	uzytkownik_id 	serial primary key,
 	imie 			varchar(50),
@@ -20,7 +32,7 @@ create table uzytkownik (
 
 
 
-drop table if exists referat cascade;
+
 create table referat (
 	referat_id 		serial primary key,
 	uzytkownik_id	int not null,
@@ -34,7 +46,7 @@ create table referat (
 );
 
 
-drop table if exists ocena cascade;
+
 create table ocena (
 	uzytkownik_id	int not null,
 	referat_id		int not null,
@@ -46,7 +58,7 @@ create table ocena (
 
 
 
-drop table if exists znajomosc cascade;
+
 create table znajomosc (
 	kto1_id			int not null,
 	kto2_id			int not null,
@@ -56,7 +68,29 @@ create table znajomosc (
 );
 
 
-drop table if exists rejestracje cascade;
+
+create table znajomosc_propozycja (
+	kto1_id			int not null,
+	kto2_id			int not null,
+
+	constraint fk_kto foreign key (kto1_id) references uzytkownik(uzytkownik_id),
+	constraint fk_kogo foreign key (kto2_id) references uzytkownik(uzytkownik_id)
+);
+
+
+create or replace function znajomosc_propozycja_ins() 
+RETURNS trigger AS $$
+	BEGIN
+		if exists ( SELECT * from znajomosc_propozycja where kto1_id=NEW.kto2_id and kto2_id = NEW.kto1_id) then
+			execute 'delete from znajomosc_propozycja where kto1_id=' || NEW.kto2_id||' and kto2_id =' || NEW.kto1_id;
+			execute 'delete from znajomosc_propozycja where kto1_id=' || NEW.kto1_id||' and kto2_id =' || NEW.kto2_id;
+			execute 'insert into znajomosc(kto1_id, kto2_id) values ('||NEW.kto1_id||', '||NEW.kto2_id||')';
+			execute 'insert into znajomosc(kto1_id, kto2_id) values ('||NEW.kto2_id||', '||NEW.kto1_id||')';
+		end if;
+		return NEW;
+	END;
+$$ LANGUAGE plpgsql;
+
 create table rejestracje (
 	uzytkownik_id	int not null,
 	wydarzenie_id	int not null,
@@ -79,7 +113,7 @@ $$
 language sql stable;
 
 
-drop table if exists obecnosc cascade;
+
 create table obecnosc (
 	uzytkownik_id	int not null,
 	referat_id		int not null check ( zapisanyNaWydarzenie(referat_id, uzytkownik_id) ),
@@ -89,7 +123,7 @@ create table obecnosc (
 );
 
 
-drop table if exists propozycja_referat cascade;
+
 create table propozycja_referat (
 	uzytkownik_id	int not null,
 	nazwa			varchar(100),
@@ -111,18 +145,21 @@ grant SELECT on rejestracje to organizator ;
 grant SELECT on uzytkownik to organizator ;
 grant SELECT, update, insert on wydarzenie to organizator ;
 grant SELECT on znajomosc to organizator;
+grant SELECT on znajomosc_propozycja to organizator;
 
 --uzytkownik
 grant insert on obecnosc to uzytkownik;
 grant SELECT, insert on ocena to uzytkownik;
-grant SELECT, update, insert on propozycja_referat to uzytkownik ;
+grant update, insert on propozycja_referat to uzytkownik ;
 grant SELECT on referat to uzytkownik;
 grant insert on rejestracje to uzytkownik;
 grant select on wydarzenie to uzytkownik;
-grant SELECT,insert on znajomosc to uzytkownik;
+grant SELECT on znajomosc to uzytkownik;
+grant SELECT, insert on znajomosc_propozycja to uzytkownik;
 
 create user administrator with password 'standard8';
 grant organizator to administrator ;
+
 
 create or replace function uzytkownik_insdel_fun() 
 RETURNS trigger AS $$
@@ -145,3 +182,7 @@ CREATE TRIGGER uzytkownik_ins after insert on uzytkownik
 CREATE TRIGGER uzytkownik_del before delete on uzytkownik
 	for each row 
 	execute procedure uzytkownik_insdel_fun();
+
+CREATE TRIGGER znajomosc_prop_ins after insert on znajomosc_propozycja
+	for each row 
+	execute procedure znajomosc_propozycja_ins();
