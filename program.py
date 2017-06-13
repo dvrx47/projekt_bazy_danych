@@ -310,7 +310,7 @@ def abandoned_talksFun( jsonData ):
 		
 		cur = newConn.cursor()
 		
-		cur.execute("select * from abandoned_talks('" + jsonData['login']+ "', " + str( jsonData['limit'] + ");") 
+		cur.execute("select * from abandoned_talks("+ str( jsonData['limit'] ) + ");") 
 		
 		data = cur.fetchall()
 		lista = []
